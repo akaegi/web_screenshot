@@ -1,0 +1,38 @@
+name: Web Screenshot
+version: "1.2.5"
+slug: web_screenshot
+description: Renders element screenshots of a web page once into /media/screenshots (start it from an automation)
+arch:
+  - aarch64
+  - amd64
+init: false
+startup: once
+boot: manual
+map:
+  - media:rw
+options:
+  cdp_url: ""
+  url: ""
+  selectors: []
+  hide: []
+  style: []
+  output: "screenshot.png"
+  width: 720
+  height: 720
+  gap: 10
+  margin: 10
+schema:
+  cdp_url: password
+  url: str
+  selectors:
+    - str
+  hide:
+    - str
+  style:
+    - selector: str
+      css: str
+  output: str
+  width: int(100,)
+  height: int(100,)
+  gap: int(0,)
+  margin: int(0,)

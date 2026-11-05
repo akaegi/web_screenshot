@@ -16,22 +16,13 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("url")
 parser.add_argument("selectors", nargs="+", help="elements to capture, top to bottom")
-parser.add_argument("--output", help="output PNG file")
+parser.add_argument("output", help="output PNG file")
 parser.add_argument(
     "--hide",
     action="append",
     default=[],
     metavar="SELECTOR",
     help="element to hide with display:none (repeatable)",
-)
-parser.add_argument(
-    "--style",
-    action="append",
-    default=[],
-    nargs=2,
-    metavar=("SELECTOR", "CSS"),
-    help='set inline styles on matching elements, e.g. --style ".x" "overflow: hidden" '
-    "(repeatable)",
 )
 parser.add_argument("--width", type=int, default=720, help="viewport width")
 parser.add_argument("--height", type=int, default=720, help="viewport height")
@@ -40,9 +31,33 @@ parser.add_argument("--margin", type=int, default=10, help="outer margin in px")
 parser.add_argument("--timezone", default="Europe/Zurich", help="browser time zone")
 parser.add_argument("--locale", default="de-CH", help="browser locale")
 parser.add_argument(
+    "--wait-until",
+    default="networkidle",
+    choices=["commit", "domcontentloaded", "load", "networkidle"],
+    help="when page.goto counts as done (default: networkidle)",
+)
+parser.add_argument(
+    "--timeout",
+    type=int,
+    default=60,
+    help="seconds to wait for the page and for each element (default: 60)",
+)
+parser.add_argument(
+    "--delay",
+    type=float,
+    default=0,
+    help="extra seconds to wait after the elements are visible (default: 0)",
+)
+parser.add_argument(
+    "--debug",
+    metavar="PNG",
+    help="also save a full-page screenshot to this file and print element details",
+)
+parser.add_argument(
     "--cdp",
     default=os.environ.get("BROWSERLESS_URL"),
-    help="WebSocket URL of a remote browser (default: $BROWSERLESS_URL); "
+    help="CDP endpoint of a remote browser, e.g. http://127.0.0.1:9222 for Moli "
+    "or a Browserless wss:// URL (default: $BROWSERLESS_URL); "
     "without it a local Chromium is used",
 )
 args = parser.parse_args()
@@ -56,12 +71,7 @@ if not args.cdp:
         stdout=subprocess.DEVNULL,
     )
 
-
-def element_image(page, selector):
-    el = page.locator(selector).first  # pierces open shadow DOM
-    el.wait_for(state="visible")
-    return Image.open(io.BytesIO(el.screenshot())).convert("RGB")
-
+timeout_ms = args.timeout * 1000
 
 with sync_playwright() as p:
     if args.cdp:
@@ -75,28 +85,42 @@ with sync_playwright() as p:
         locale=args.locale,
     )
     page = context.new_page()
-    page.goto(args.url, wait_until="networkidle")
+    page.goto(args.url, wait_until=args.wait_until, timeout=timeout_ms)
+
+    # Wait until every element is rendered, then give the page extra time if asked.
+    locators = [page.locator(s).first for s in args.selectors]  # pierces open shadow DOM
+    for loc in locators:
+        loc.wait_for(state="visible", timeout=timeout_ms)
+    if args.delay:
+        page.wait_for_timeout(args.delay * 1000)
 
     for selector in args.hide:
         page.locator(selector).evaluate_all(
             "els => els.forEach(el => el.style.setProperty('display', 'none', 'important'))"
         )
 
-    for selector, css in args.style:
-        page.locator(selector).evaluate_all(
-            """(els, css) => {
-                for (const decl of css.split(';')) {
-                    const i = decl.indexOf(':');
-                    if (i < 0) continue;
-                    const prop = decl.slice(0, i).trim();
-                    const value = decl.slice(i + 1).trim();
-                    els.forEach(el => el.style.setProperty(prop, value, 'important'));
-                }
-            }""",
-            css,
-        )
+    if args.debug:
+        for s, loc in zip(args.selectors, locators):
+            info = loc.evaluate(
+                """el => ({
+                    tag: el.tagName,
+                    box: el.getBoundingClientRect().toJSON(),
+                    svgs: el.querySelectorAll('svg').length,
+                    paths: el.querySelectorAll('path, rect, line, text').length,
+                    html: el.innerHTML.length,
+                })"""
+            )
+            print(s, info, file=sys.stderr)
+        try:
+            locators[0].scroll_into_view_if_needed(timeout=timeout_ms)
+            page.screenshot(path=args.debug, timeout=timeout_ms)  # viewport only
+        except Exception as e:
+            print(f"debug screenshot failed: {e}", file=sys.stderr)
 
-    images = [element_image(page, s) for s in args.selectors]
+    images = [
+        Image.open(io.BytesIO(loc.screenshot(timeout=timeout_ms))).convert("RGB")
+        for loc in locators
+    ]
     context.close()
     browser.close()
 
