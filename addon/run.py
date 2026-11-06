@@ -25,11 +25,11 @@ args = [
     "--height", str(opts["height"]),
     "--gap", str(opts["gap"]),
     "--margin", str(opts["margin"]),
+    "--cdp", opts["cdp_url"],
 ]
 for selector in opts.get("hide", []):
     args += ["--hide", selector]
 for rule in opts.get("style", []):
     args += ["--style", rule["selector"], rule["css"]]
 
-os.environ["CDP_URL"] = opts["cdp_url"]
 os.execv(sys.executable, args)  # replace this process with screenshot.py

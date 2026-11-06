@@ -41,9 +41,7 @@ parser.add_argument("--timezone", default="Europe/Zurich", help="browser time zo
 parser.add_argument("--locale", default="de-CH", help="browser locale")
 parser.add_argument(
     "--cdp",
-    default=os.environ.get("CDP_URL"),
-    help="CDP URL of a remote browser (default: $CDP_URL); "
-    "without it a local Chromium is used",
+    help="CDP URL of a remote browser; without it a local Chromium is used",
 )
 args = parser.parse_args()
 
