@@ -1,5 +1,5 @@
 name: Web Screenshot
-version: "0.0.1"
+version: "0.0.2"
 slug: web_screenshot
 description: Renders element screenshots of a web page once into /media/screenshots (start it from an automation)
 arch:

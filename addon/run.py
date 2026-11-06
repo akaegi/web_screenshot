@@ -2,18 +2,37 @@
 renders once and exits. Home Assistant decides when to run it (automation)."""
 
 import json
+import logging
 import os
 import sys
+from urllib.parse import urlsplit
 
 OPTIONS_FILE = "/data/options.json"
 OUTPUT_DIR = "/media/screenshots"
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout
+)
+log = logging.getLogger("run")
+
 with open(OPTIONS_FILE) as f:
     opts = json.load(f)
 
-for option in ("cdp_url", "url", "selectors"):
-    if not opts.get(option):
-        sys.exit(f"{option} is not set - add it in the add-on configuration")
+# The token is part of cdp_url, so only the host may reach the log.
+shown = dict(opts)
+if opts.get("cdp_url"):
+    shown["cdp_url"] = f"{urlsplit(opts['cdp_url']).hostname} (rest hidden)"
+log.info("Options received: %s", json.dumps(shown, ensure_ascii=False))
+
+opts["selectors"] = [s for s in opts.get("selectors", []) if s.strip()]
+missing = [o for o in ("cdp_url", "url", "selectors") if not opts.get(o)]
+if missing:
+    log.error(
+        "Empty in %s: %s. Set them in the Configuration tab, press Save and start the add-on again.",
+        OPTIONS_FILE,
+        ", ".join(missing),
+    )
+    sys.exit(1)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

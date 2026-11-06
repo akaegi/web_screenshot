@@ -4,9 +4,12 @@
 
 import argparse
 import io
+import logging
 import os
 import subprocess
 import sys
+import time
+from urllib.parse import urlsplit
 
 from PIL import Image
 from playwright.sync_api import sync_playwright
@@ -45,6 +48,12 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout
+)
+log = logging.getLogger("screenshot")
+started = time.monotonic()
+
 if not args.cdp:
     # Local mode: make sure the Chromium build matching this Playwright
     # version is present (quick no-op when it is already installed).
@@ -63,8 +72,16 @@ def element_image(page, selector):
 
 with sync_playwright() as p:
     if args.cdp:
-        browser = p.chromium.connect_over_cdp(args.cdp)
+        host = urlsplit(args.cdp).hostname
+        log.info("Connecting to %s", host)
+        try:
+            browser = p.chromium.connect_over_cdp(args.cdp)
+        except Exception as e:
+            # The URL can contain a token, keep it out of the log.
+            log.error("Could not connect to %s: %s", host, str(e).replace(args.cdp, "<cdp_url>"))
+            sys.exit(1)
     else:
+        log.info("Starting local Chromium")
         browser = p.chromium.launch()
     context = browser.new_context(
         viewport={"width": args.width, "height": args.height},
@@ -73,6 +90,7 @@ with sync_playwright() as p:
         locale=args.locale,
     )
     page = context.new_page()
+    log.info("Loading %s", args.url)
     page.goto(args.url, wait_until="networkidle")
 
     for selector in args.hide:
@@ -94,6 +112,7 @@ with sync_playwright() as p:
             css,
         )
 
+    log.info("Capturing %d element(s)", len(args.selectors))
     images = [element_image(page, s) for s in args.selectors]
     context.close()
     browser.close()
@@ -115,3 +134,11 @@ for img in images:
 tmp = args.output + ".tmp"
 canvas.save(tmp, format="PNG")
 os.replace(tmp, args.output)
+log.info(
+    "Saved %s (%dx%d px, %d KB) in %.1f s",
+    args.output,
+    canvas.width,
+    canvas.height,
+    os.path.getsize(args.output) // 1024,
+    time.monotonic() - started,
+)
