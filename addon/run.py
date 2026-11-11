@@ -51,5 +51,7 @@ for selector in opts.get("hide", []):
     args += ["--hide", selector]
 for rule in opts.get("style", []):
     args += ["--style", rule["selector"], rule["css"]]
+if opts.get("transparent"):
+    args.append("--transparent")
 
 os.execv(sys.executable, args)  # replace this process with screenshot.py

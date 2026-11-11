@@ -40,6 +40,12 @@ parser.add_argument(
     help='set inline styles on matching elements, e.g. --style ".x" "overflow: hidden" '
     "(repeatable)",
 )
+parser.add_argument(
+    "--transparent",
+    action="store_true",
+    help="leave areas without a background transparent instead of white "
+    "(the page's own backgrounds stay, remove them with --style)",
+)
 parser.add_argument("--width", type=int, default=720, help="viewport width")
 parser.add_argument("--height", type=int, default=720, help="viewport height")
 parser.add_argument("--timezone", default="Europe/Zurich", help="browser time zone")
@@ -72,7 +78,7 @@ def save_element(page, selector, output):
     # Write to a temporary file first and rename it, so a reader (e.g. Home Assistant)
     # never sees a half-written image.
     tmp = output + ".tmp"
-    el.screenshot(path=tmp, type="png")
+    el.screenshot(path=tmp, type="png", omit_background=args.transparent)
     os.replace(tmp, output)
     box = el.bounding_box()
     log.info(

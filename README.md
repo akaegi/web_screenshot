@@ -29,6 +29,7 @@ pipx run addon/screenshot.py \
 | `--shot SELECTOR OUTPUT` | Element und sein Ziel-PNG, mindestens einmal, mehrfach möglich (wird über eine temporäre Datei geschrieben und dann umbenannt) |
 | `--hide SELECTOR` | Element mit `display: none` ausblenden, mehrfach möglich |
 | `--style SELECTOR CSS` | Inline-Styles setzen, z. B. `"overflow: hidden"`, mehrfach möglich |
+| `--transparent` | Bereiche ohne Hintergrund transparent statt weiss speichern; eigene Hintergründe der Seite bleiben und müssen per `--style` entfernt werden |
 | `--width`, `--height` | Viewport, Standard 720×720 |
 | `--timezone`, `--locale` | Standard `Europe/Zurich`, `de-CH` |
 | `--cdp URL` | Entfernter Browser (Browserless `wss://…?token=…`, lokales Chrome `http://127.0.0.1:9222`); ohne startet lokal Chromium |
@@ -99,6 +100,22 @@ einer einzigen Browserless-Sitzung.
 `hide` blendet das Cookie-Banner aus. weather.com wählt den Ort anhand der IP-Adresse des Browsers,
 mit Browserless also den Standort des Browserless-Servers; für einen festen Ort die URL der
 entsprechenden Ortsseite verwenden.
+
+Für ein PNG mit transparentem Hintergrund `transparent: true` setzen (CLI: `--transparent`). Das
+entfernt nur den weissen Grundhintergrund des Browsers. Hintergründe, die die Seite selbst setzt,
+bleiben und müssen per `style` transparent gemacht werden. Oft hängen sie an CSS-Variablen, die sich
+an einem gemeinsamen Vorfahren überschreiben lassen und auch in Shadow DOM hinein vererbt werden:
+
+```yaml
+transparent: true
+style:
+  - selector: .page-body
+    css: "--section-background: transparent"
+```
+
+Welche Elemente oder Variablen den Hintergrund liefern, zeigen die Browser-Entwicklertools; auch
+Pseudo-Elemente wie `::before` kommen in Frage, die sich per Inline-Style nicht direkt erreichen
+lassen.
 
 Nach Änderungen an `config.yaml` die Version erhöhen und erneut «Nach Updates suchen»;
 nach Änderungen an den übrigen Dateien im Add-on ⋮ → «Neu erstellen». Bei Variante A vorher pushen
