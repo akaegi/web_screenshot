@@ -1,5 +1,5 @@
 name: Web Screenshot
-version: "0.0.2"
+version: "0.0.4"
 slug: web_screenshot
 description: Renders element screenshots of a web page once into /media/screenshots (start it from an automation)
 arch:
@@ -13,26 +13,21 @@ map:
 options:
   cdp_url: ""
   url: ""
-  selectors: []
+  shots: []
   hide: []
   style: []
-  output: "screenshot.png"
   width: 720
   height: 720
-  gap: 10
-  margin: 10
 schema:
   cdp_url: password
   url: str
-  selectors:
-    - str
+  shots:
+    - selector: str
+      output: str
   hide:
     - str
   style:
     - selector: str
       css: str
-  output: str
   width: int(100,)
   height: int(100,)
-  gap: int(0,)
-  margin: int(0,)

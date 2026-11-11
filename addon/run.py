@@ -24,8 +24,10 @@ if opts.get("cdp_url"):
     shown["cdp_url"] = f"{urlsplit(opts['cdp_url']).hostname} (rest hidden)"
 log.info("Options received: %s", json.dumps(shown, ensure_ascii=False))
 
-opts["selectors"] = [s for s in opts.get("selectors", []) if s.strip()]
-missing = [o for o in ("cdp_url", "url", "selectors") if not opts.get(o)]
+opts["shots"] = [
+    s for s in opts.get("shots", []) if s["selector"].strip() and s["output"].strip()
+]
+missing = [o for o in ("cdp_url", "url", "shots") if not opts.get(o)]
 if missing:
     log.error(
         "Empty in %s: %s. Set them in the Configuration tab, press Save and start the add-on again.",
@@ -38,14 +40,13 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 args = [
     sys.executable, "/app/screenshot.py",
-    opts["url"], *opts["selectors"],
-    "--output", os.path.join(OUTPUT_DIR, opts["output"]),
+    opts["url"],
     "--width", str(opts["width"]),
     "--height", str(opts["height"]),
-    "--gap", str(opts["gap"]),
-    "--margin", str(opts["margin"]),
     "--cdp", opts["cdp_url"],
 ]
+for shot in opts["shots"]:
+    args += ["--shot", shot["selector"], os.path.join(OUTPUT_DIR, shot["output"])]
 for selector in opts.get("hide", []):
     args += ["--hide", selector]
 for rule in opts.get("style", []):

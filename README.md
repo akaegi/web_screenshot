@@ -1,14 +1,14 @@
 # Web Screenshot
 
-Erzeugt einen Screenshot von einem oder mehreren Elementen einer Webseite und stapelt sie
-vertikal in ein PNG. Gedacht zum Beispiel für eine Wetterprognose als Bild im
+Erzeugt von einem oder mehreren Elementen einer Webseite je ein eigenes PNG. Die Seite wird dafür
+nur einmal geladen. Gedacht zum Beispiel für eine Wetterprognose als Bild im
 Home-Assistant-Dashboard (Shelly Wall Display X1i, 720×720).
 
 ## Inhalt
 
 | Pfad | Zweck |
 |---|---|
-| `addon/screenshot.py` | Das Script (Playwright + Pillow), auch direkt auf dem Mac nutzbar |
+| `addon/screenshot.py` | Das Script (Playwright), auch direkt auf dem Mac nutzbar |
 | `addon/` | Lokales Home-Assistant-Add-on, das `screenshot.py` einmal ausführt |
 | `docs/konversation.md` | Zusammenfassung der Entstehung, Entscheidungen und verworfenen Varianten |
 
@@ -19,19 +19,17 @@ Abhängigkeiten stehen als Inline-Metadaten im Script, es läuft direkt mit `pip
 ```bash
 pipx run addon/screenshot.py \
   "https://weather.com/" \
-  '[data-testid="current-conditions"]' \
-  --output weather.png \
+  --shot '[data-testid="current-conditions"]' weather.png \
   --hide '[id^="sp_message_container"]'
 ```
 
 | Option | Bedeutung |
 |---|---|
-| `URL SELECTOR [SELECTOR ...]` | Seite und ein oder mehrere Elemente, von oben nach unten gestapelt |
-| `--output` | Ziel-PNG (wird über eine temporäre Datei geschrieben und dann umbenannt) |
+| `URL` | Seite, die einmal geladen wird |
+| `--shot SELECTOR OUTPUT` | Element und sein Ziel-PNG, mindestens einmal, mehrfach möglich (wird über eine temporäre Datei geschrieben und dann umbenannt) |
 | `--hide SELECTOR` | Element mit `display: none` ausblenden, mehrfach möglich |
 | `--style SELECTOR CSS` | Inline-Styles setzen, z. B. `"overflow: hidden"`, mehrfach möglich |
 | `--width`, `--height` | Viewport, Standard 720×720 |
-| `--gap`, `--margin` | Abstand zwischen den Elementen bzw. Rand, Standard je 10 px |
 | `--timezone`, `--locale` | Standard `Europe/Zurich`, `de-CH` |
 | `--cdp URL` | Entfernter Browser (Browserless `wss://…?token=…`, lokales Chrome `http://127.0.0.1:9222`); ohne startet lokal Chromium |
 
@@ -80,7 +78,7 @@ Assistant das Image aus dem `Dockerfile` auf dem eigenen Gerät.
    (`config.yaml`, `Dockerfile`, `run.py`, `screenshot.py`).
 2. Einstellungen → Add-ons → Add-on-Store → ⋮ → «Nach Updates suchen» → «Web Screenshot» installieren.
 
-**Danach in beiden Fällen:** Im Tab Konfiguration `cdp_url`, `url` und `selectors` eintragen
+**Danach in beiden Fällen:** Im Tab Konfiguration `cdp_url`, `url` und `shots` eintragen
 (Beispiel unten), speichern, einmal von Hand starten und das Protokoll prüfen.
 
 Beispielwerte für die aktuellen Bedingungen von weather.com (die weiteren Abschnitte gehen von
@@ -88,12 +86,15 @@ Beispielwerte für die aktuellen Bedingungen von weather.com (die weiteren Absch
 
 ```yaml
 url: https://weather.com/
-selectors:
-  - '[data-testid="current-conditions"]'
+shots:
+  - selector: '[data-testid="current-conditions"]'
+    output: weather.png
 hide:
   - '[id^="sp_message_container"]'
-output: weather.png
 ```
+
+Jeder Eintrag in `shots` ergibt ein eigenes PNG. Alle stammen aus demselben Seitenaufruf, also aus
+einer einzigen Browserless-Sitzung.
 
 `hide` blendet das Cookie-Banner aus. weather.com wählt den Ort anhand der IP-Adresse des Browsers,
 mit Browserless also den Standort des Browserless-Servers; für einen festen Ort die URL der
@@ -104,13 +105,14 @@ nach Änderungen an den übrigen Dateien im Add-on ⋮ → «Neu erstellen». Be
 und ebenfalls «Nach Updates suchen», damit Home Assistant den neuen Stand von GitHub holt. Ein
 Update wird im Store nur angezeigt, wenn die Version erhöht wurde.
 
-Das Bild landet in `/media/screenshots/weather.png` (siehe `map: media:rw` in `config.yaml` und
+Die Bilder landen in `/media/screenshots/`, hier also `/media/screenshots/weather.png` (siehe `map: media:rw` in `config.yaml` und
 `OUTPUT_DIR` in `run.py`). Das Add-on sieht nur den Media-Ordner und hat keinen Zugriff auf die
 HA-Konfiguration.
 
 ### Kamera, Automation, Karte
 
-Kamera: Integration **Local File** mit Pfad `/media/screenshots/weather.png`, oder per YAML:
+Kamera: Pro PNG eine Integration **Local File** mit Pfad `/media/screenshots/weather.png`, oder per
+YAML:
 
 ```yaml
 camera:
@@ -129,15 +131,16 @@ triggers:
 conditions:
   - condition: time
     after: "05:00:00"
-    before: "22:00:00"
+    before: "23:00:00"
 actions:
   - action: hassio.addon_start
     data:
-      addon: local_web_screenshot
+      addon: 093d96f4_web_screenshot
 ```
 
-`local_web_screenshot` gilt für Variante B. Bei Variante A beginnt die ID stattdessen mit einem Hash
-des Repositorys (`<hash>_web_screenshot`); sie steht in der URL der Add-on-Seite.
+`093d96f4_web_screenshot` gilt für Variante A, wenn das Repository genau mit der URL von oben
+eingetragen wurde; der Präfix ist ein Hash dieser URL. Die tatsächliche ID steht in der URL der
+Add-on-Seite. Bei Variante B lautet sie `local_web_screenshot`.
 
 Karte:
 

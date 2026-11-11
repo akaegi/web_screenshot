@@ -51,7 +51,9 @@ Schrittweise entstanden:
 
 ## 5. Home-Assistant-Add-on (aktueller Stand)
 
-- Ohne Browser im Image (nur Playwright-Client + Pillow, ~200 MB).
+- Ohne Browser im Image (nur Playwright-Client).
+- Jedes Element ergibt ein eigenes PNG (`shots`), alle aus einem Seitenaufruf; Stapeln, `gap` und
+  `margin` sind entfallen, der frühere Stand liegt in `archiv/screenshot_v4.py`.
 - `startup: once`, `boot: manual`: HA startet das Add-on per Automation
   (`hassio.addon_start`, `local_web_screenshot`), dadurch Nachtpause und weitere Bedingungen in HA.
 - `run.py` übersetzt nur noch `/data/options.json` in Argumente für `screenshot.py`.

@@ -1,9 +1,8 @@
 # /// script
-# dependencies = ["playwright", "pillow"]
+# dependencies = ["playwright"]
 # ///
 
 import argparse
-import io
 import logging
 import os
 import subprocess
@@ -11,15 +10,20 @@ import sys
 import time
 from urllib.parse import urlsplit
 
-from PIL import Image
 from playwright.sync_api import sync_playwright
 
 parser = argparse.ArgumentParser(
-    description="Screenshot one or more elements of a page and stack them vertically."
+    description="Screenshot one or more elements of a page, each into its own PNG."
 )
 parser.add_argument("url")
-parser.add_argument("selectors", nargs="+", help="elements to capture, top to bottom")
-parser.add_argument("--output", required=True, help="output PNG file")
+parser.add_argument(
+    "--shot",
+    action="append",
+    required=True,
+    nargs=2,
+    metavar=("SELECTOR", "OUTPUT"),
+    help="element to capture and its output PNG file (repeatable)",
+)
 parser.add_argument(
     "--hide",
     action="append",
@@ -38,8 +42,6 @@ parser.add_argument(
 )
 parser.add_argument("--width", type=int, default=720, help="viewport width")
 parser.add_argument("--height", type=int, default=720, help="viewport height")
-parser.add_argument("--gap", type=int, default=10, help="spacing between elements in px")
-parser.add_argument("--margin", type=int, default=10, help="outer margin in px")
 parser.add_argument("--timezone", default="Europe/Zurich", help="browser time zone")
 parser.add_argument("--locale", default="de-CH", help="browser locale")
 parser.add_argument(
@@ -64,10 +66,22 @@ if not args.cdp:
     )
 
 
-def element_image(page, selector):
+def save_element(page, selector, output):
     el = page.locator(selector).first  # pierces open shadow DOM
     el.wait_for(state="visible")
-    return Image.open(io.BytesIO(el.screenshot())).convert("RGB")
+    # Write to a temporary file first and rename it, so a reader (e.g. Home Assistant)
+    # never sees a half-written image.
+    tmp = output + ".tmp"
+    el.screenshot(path=tmp, type="png")
+    os.replace(tmp, output)
+    box = el.bounding_box()
+    log.info(
+        "Saved %s (%dx%d px, %d KB)",
+        output,
+        box["width"],
+        box["height"],
+        os.path.getsize(output) // 1024,
+    )
 
 
 with sync_playwright() as p:
@@ -90,6 +104,9 @@ with sync_playwright() as p:
         locale=args.locale,
     )
     page = context.new_page()
+    # Playwright hides scrollbars only in browsers it launches itself. Without this,
+    # a remote browser lays the page out about 15 px narrower.
+    context.new_cdp_session(page).send("Emulation.setScrollbarsHidden", {"hidden": True})
     log.info("Loading %s", args.url)
     page.goto(args.url, wait_until="networkidle")
 
@@ -112,33 +129,11 @@ with sync_playwright() as p:
             css,
         )
 
-    log.info("Capturing %d element(s)", len(args.selectors))
-    images = [element_image(page, s) for s in args.selectors]
+    # All elements come from this one page load, so a run costs a single browser session.
+    log.info("Capturing %d element(s)", len(args.shot))
+    for selector, output in args.shot:
+        save_element(page, selector, output)
     context.close()
     browser.close()
 
-m = args.margin
-content_width = max(img.width for img in images)
-content_height = sum(img.height for img in images) + args.gap * (len(images) - 1)
-background = images[0].getpixel((0, 0))
-
-canvas = Image.new("RGB", (content_width + 2 * m, content_height + 2 * m), background)
-y = m
-for img in images:
-    x = m + (content_width - img.width) // 2
-    canvas.paste(img, (x, y))
-    y += img.height + args.gap
-
-# Write to a temporary file first and rename it, so a reader (e.g. Home Assistant)
-# never sees a half-written image.
-tmp = args.output + ".tmp"
-canvas.save(tmp, format="PNG")
-os.replace(tmp, args.output)
-log.info(
-    "Saved %s (%dx%d px, %d KB) in %.1f s",
-    args.output,
-    canvas.width,
-    canvas.height,
-    os.path.getsize(args.output) // 1024,
-    time.monotonic() - started,
-)
+log.info("Done: %d file(s) in %.1f s", len(args.shot), time.monotonic() - started)
